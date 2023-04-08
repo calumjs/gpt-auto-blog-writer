@@ -27,6 +27,7 @@ Sample `local.settings.json`:
     "OpenAIKey": "<your_openai_key>"
   }
 }
+```
 
 2. Deploy the function to Azure.
 3. The function will run every 8 hours, generating a new blog post and creating a pull request in the specified repository.
