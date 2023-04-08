@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "Auto_Content_Generator": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7100"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "httpPort": 30534,
+      "useSSL": false
+    }
+  }
+}
