@@ -25,7 +25,9 @@ namespace AutoContentGenerator
     public static class GenerateBlogPost
     {
         [FunctionName("GenerateBlogPost")]
-        public static async Task Run([TimerTrigger("0 */8 * * *")] TimerInfo myTimer, ILogger log)
+        public static async Task<IActionResult> Run(
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
+            ILogger log)
         {
         log.LogInformation("C# HTTP trigger function processed a request.");
 
@@ -82,16 +84,16 @@ namespace AutoContentGenerator
             // Create a pull request
             try
             {
-                var pr = new NewPullRequest($"Add new blog post", newBranchName, "master");
+                var pr = new NewPullRequest($"Add new blog post {blogPost.Title}", newBranchName, "master");
                 var email = gitHubClient.User.Email;
                 var createdPr = await gitHubClient.PullRequest.Create(repoOwner, repoName, pr);
 
-                return;
+                return new OkObjectResult(createdPr.HtmlUrl);
             }
             catch (Octokit.ApiValidationException ex)
             {
                 log.LogError($"Validation failed: {ex.Message}");
-                return;
+                return new BadRequestObjectResult(ex.Message);
             }
 
 
@@ -99,22 +101,23 @@ namespace AutoContentGenerator
         public static async Task<BlogPost> WriteBlogPost(string existingPosts)
         {
             OpenAIAPI api = new OpenAIAPI(System.Environment.GetEnvironmentVariable("OpenAIKey"));
-            string prompt = @"
+            string prompt = @$"
 You are a blog writer for my blog on tea called Tea Treasury, at teatreasury.com
 This is a blog all about tea - we cover all aspects essential and tangential related to tea, tea production, tea consumption, etc.
 Feel free to be controversial in order to drive engagement.
 Use markdown when you create the page.
+Today's date is {DateTime.Now.ToString("yyyy-MM-dd")}.
 Include frontmatter on your page in the following format:
 ---
 title: ""<title>""
-date: ""<date>""
+date: ""{DateTime.Now.ToString("yyyy-MM-dd")}""
 author: ""Tea Treasury""
 tags:
 - ""<tag1>""
 - ""<tag2>""
 - ""<tag3>""
 ---
-You will receive a list of past topics from the user, write a blog on a new topic not listed. Aim for 500+ words. Include a table or two to break up the solid text content.
+You will receive a list of past topics from the user, write a blog on a brand new topic not listed. Do not repeat a topic already covered. Aim for 1000+ words. Include a table or two to break up the solid text content.
 ";
             var chat = api.Chat.CreateConversation(new OpenAI_API.Chat.ChatRequest() { Model = "gpt-3.5-turbo" });
             chat.AppendSystemMessage(prompt);
