@@ -1,5 +1,7 @@
 # Auto Content Generator
 
+[![YouTube video](https://img.youtube.com/vi/zxxxrx5gH9g/0.jpg)](https://www.youtube.com/watch?v=zxxxrx5gH9g)
+
 Auto Content Generator is an Azure Function written in C# that uses OpenAI's GPT-3.5-turbo to generate new markdown formatted blog posts. I have left my prompt in there to show you what I did, but obviously you will need to update it to meet the requirements of your blog. The function clones a specified GitHub repository, generates a new Markdown file with the blog post content, commits the new file, and creates a pull request for the change.
 
 ## Environment Variables:
