@@ -15,12 +15,14 @@ using System;
 using OpenAI_API;
 using System.Text.RegularExpressions;
 using System.Linq;
+using System.Net.Http.Headers;
 
 namespace AutoContentGenerator
 {
     public class BlogPost {
         public string Title { get; set; }
         public string Content { get; set; }
+        public string ImageURL { get; set; }
     }
     public static class GenerateBlogPost
     {
@@ -38,7 +40,7 @@ namespace AutoContentGenerator
             string postsDirectory = System.Environment.GetEnvironmentVariable("GitHubPostsDirectory");
 
             // Initialize GitHub client
-            var gitHubClient = new GitHubClient(new ProductHeaderValue("AutoContentGenerator"))
+            var gitHubClient = new GitHubClient(new Octokit.ProductHeaderValue("AutoContentGenerator"))
             {
                 Credentials = new Octokit.Credentials(repoOwner, gitHubToken)
             };
@@ -61,6 +63,11 @@ namespace AutoContentGenerator
             string newFilePath = Path.Combine(clonePath, postsDirectory, blogPost.Title + ".md");
             await File.WriteAllTextAsync(newFilePath, markdownContent);
 
+            // Download and save the image
+            string imagesPath = Path.Combine(clonePath, "public/images/posts");
+            string imageFileName = $"{blogPost.Title}.png";
+            string savedImagePath = await DownloadAndSaveImage(blogPost.ImageURL, imageFileName, imagesPath);
+
             string newBranchName;
             // Commit the new file
             using (var repo = new LibGit2Sharp.Repository(clonePath))
@@ -72,6 +79,7 @@ namespace AutoContentGenerator
 
                 // Add the new file and commit
                 Commands.Stage(repo, newFilePath);
+                Commands.Stage(repo, savedImagePath);
                 var author = new LibGit2Sharp.Signature("GPT-Blog-Writer", System.Environment.GetEnvironmentVariable("GitHubEmail"), DateTimeOffset.Now);
                 repo.Commit("Add new blog post", author, author);
 
@@ -100,12 +108,14 @@ namespace AutoContentGenerator
         }
         public static async Task<BlogPost> WriteBlogPost(string existingPosts)
         {
-            OpenAIAPI api = new OpenAIAPI(System.Environment.GetEnvironmentVariable("OpenAIKey"));
+            string apiKey = System.Environment.GetEnvironmentVariable("OpenAIKey");
             string prompt = @$"
 You are a blog writer for my blog on tea called Tea Treasury, at teatreasury.com
 This is a blog all about tea - we cover all aspects essential and tangential related to tea, tea production, tea consumption, etc.
 Feel free to be controversial in order to drive engagement.
 Use markdown when you create the page.
+Do not put the title in an h1 tag at the start of the article, because it will be added separately via my blog page.
+Use an occaisional pun or thoughtful personal remark in the introduction or conclusion. Encourage people to engage with the discussion area under the post via various means.
 Today's date is {DateTime.Now.ToString("yyyy-MM-dd")}.
 Include frontmatter on your page in the following format:
 ---
@@ -119,10 +129,13 @@ tags:
 ---
 You will receive a list of past topics from the user, write a blog on a brand new topic not listed. Do not repeat a topic already covered. Aim for 1000+ words. Include a table or two to break up the solid text content.
 ";
-            var chat = api.Chat.CreateConversation(new OpenAI_API.Chat.ChatRequest() { Model = "gpt-3.5-turbo" });
-            chat.AppendSystemMessage(prompt);
-            chat.AppendUserInput(existingPosts);
-            string response = await chat.GetResponseFromChatbotAsync();
+            JObject chatRequest = new JObject
+            {
+                { "model", "gpt-4" },
+                { "messages", new JArray { new JObject { { "role", "system" }, { "content", prompt } }, new JObject { { "role", "user" }, { "content", existingPosts } } } }
+            };
+
+            string response = await OpenAIService.SendChatRequest(apiKey, chatRequest.ToString());
 
             string title = null;
             var frontMatterRegex = new Regex(@"---\s*(.*?)---", RegexOptions.Singleline);
@@ -142,17 +155,42 @@ You will receive a list of past topics from the user, write a blog on a brand ne
                     }
                 }
             }
-            
+            var imageUrl = await OpenAIService.GenerateImage(apiKey, title);
             var blogPost = new BlogPost();
             blogPost.Title = ToKebabCase(title);
             blogPost.Content = response;
+            blogPost.ImageURL = imageUrl;
             return blogPost;
         }
+
         public static string ToKebabCase(string title)
         {
             var words = Regex.Split(title, @"\s+")
                 .Select(word => Regex.Replace(word.ToLowerInvariant(), @"[^a-z-]", ""));
             return string.Join("-", words.Where(word => !string.IsNullOrWhiteSpace(word)));
         }
+
+        public static async Task<string> DownloadAndSaveImage(string imageUrl, string fileName, string savePath)
+        {
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(imageUrl);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var imageBytes = await response.Content.ReadAsByteArrayAsync();
+
+                // Create the directory if it doesn't exist
+                Directory.CreateDirectory(savePath);
+
+                var filePath = Path.Combine(savePath, fileName);
+                await File.WriteAllBytesAsync(filePath, imageBytes);
+                return filePath;
+            }
+            else
+            {
+                throw new HttpRequestException($"Request failed with status code {response.StatusCode}");
+            }
+        }
+
     }
 }
