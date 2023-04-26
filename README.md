@@ -12,6 +12,7 @@ Auto Content Generator is an Azure Function written in C# that uses OpenAI's GPT
 - GitHubToken: The personal access token for your GitHub account.
 - GitHubRepoOwner: The owner of the GitHub repository.
 - GitHubRepoName: The name of the GitHub repository.
+- GitHubEmail: The email address of your GitHub account.
 - GitHubPostsDirectory: The directory in the repository where the blog posts are stored.
 - OpenAIKey: Your OpenAI API key.
 
@@ -29,6 +30,7 @@ Sample `local.settings.json`:
     "GitHubToken": "<your_github_token>",
     "GitHubRepoOwner": "<repository_owner>",
     "GitHubRepoName": "<repository_name>",
+    "GitHubEmail": "<github_email>",
     "GitHubPostsDirectory": "<posts_directory>",
     "OpenAIKey": "<your_openai_key>"
   }
@@ -36,4 +38,5 @@ Sample `local.settings.json`:
 ```
 
 2. Deploy the function to Azure.
-3. The function will run every 8 hours, generating a new blog post and creating a pull request in the specified repository.
+3. Call the HTTP trigger whenever you want a new blog post
+4. Set up the GitHub webhook...the event is pull_request_review and the payload URL will be https://<function app name>.azurewebsites.net/api/HandlePullRequestComment?code=<function code>
