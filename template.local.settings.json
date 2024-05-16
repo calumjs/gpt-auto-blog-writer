@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "GitHubToken": "<your_github_token>",
+    "GitHubRepoOwner": "<repository_owner>",
+    "GitHubRepoName": "<repository_name>",
+    "GitHubEmail": "<github_email>",
+    "GitHubPostsDirectory": "<posts_directory>",
+    "OpenAIKey": "<your_openai_key>"
+  }
+}
