@@ -16,6 +16,11 @@ using OpenAI_API;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Net.Http.Headers;
+using System.Collections.Generic;
+using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.Serialization;
+using YamlDotNet.Core;
+using YamlDotNet.Serialization.EventEmitters;
 
 namespace AutoContentGenerator
 {
@@ -38,24 +43,24 @@ namespace AutoContentGenerator
             string repoOwner = System.Environment.GetEnvironmentVariable("GitHubRepoOwner");
             string repoName = System.Environment.GetEnvironmentVariable("GitHubRepoName");
             string postsDirectory = System.Environment.GetEnvironmentVariable("GitHubPostsDirectory");
-
+            
             // Initialize GitHub client
             var gitHubClient = new GitHubClient(new Octokit.ProductHeaderValue("AutoContentGenerator"))
             {
                 Credentials = new Octokit.Credentials(repoOwner, gitHubToken)
             };
-
+            
             // Clone the repository
             string repoUrl = $"https://github.com/{repoOwner}/{repoName}.git";
             string clonePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             var libgit2sharpCredentials = new UsernamePasswordCredentials { Username = repoOwner, Password = gitHubToken };
             LibGit2Sharp.Repository.Clone(repoUrl, clonePath, new CloneOptions { CredentialsProvider = (_, __, ___) => libgit2sharpCredentials });
-
+            
             string postsPath = Path.Combine(clonePath, postsDirectory);
             string[] filePaths = Directory.GetFiles(postsPath);
             string[] fileNames = filePaths.Select(Path.GetFileName).ToArray();
             string filesList = string.Join("\n", fileNames);
-
+            
             // Generate the new Markdown file
             var blogPost = await WriteBlogPost(filesList);
 
@@ -92,7 +97,7 @@ namespace AutoContentGenerator
             // Create a pull request
             try
             {
-                var pr = new NewPullRequest($"Add new blog post {blogPost.Title}", newBranchName, "master");
+                var pr = new NewPullRequest($"Add new blog post {blogPost.Title}", newBranchName, "main");
                 var email = gitHubClient.User.Email;
                 var createdPr = await gitHubClient.PullRequest.Create(repoOwner, repoName, pr);
 
@@ -116,48 +121,61 @@ Feel free to be controversial in order to drive engagement.
 Use markdown when you create the page.
 Do not put the title in an h1 tag at the start of the article, because it will be added separately via my blog page.
 Use an occaisional pun or thoughtful personal remark in the introduction or conclusion. Encourage people to engage with the discussion area under the post via various means.
-Today's date is {DateTime.Now.ToString("yyyy-MM-dd")}.
+Today's date is {DateTime.Now.ToString("o")}.
 Include frontmatter on your page in the following format:
 ---
 title: ""<title>""
-date: ""{DateTime.Now.ToString("yyyy-MM-dd")}""
-author: ""Tea Treasury""
-tags:
-- ""<tag1>""
-- ""<tag2>""
-- ""<tag3>""
+excerpt: ""<excerpt>""
+coverImage: ""/images/posts/<title>.png""
+date: ""{DateTime.Now.ToString("o")}""
+author:
+  name: Tea Treasury
+ogImage:
+  url: ""/images/posts/<title>.png""
 ---
 You will receive a list of past topics from the user, write a blog on a brand new topic not listed. Do not repeat a topic already covered. Aim for 1000+ words. Include a table or two to break up the solid text content.
+Reply with *only* the blog post and no additional explanatory details.
 ";
             JObject chatRequest = new JObject
             {
-                { "model", "gpt-4" },
+                { "model", "gpt-4o" },
                 { "messages", new JArray { new JObject { { "role", "system" }, { "content", prompt } }, new JObject { { "role", "user" }, { "content", existingPosts } } } }
             };
 
             string response = await OpenAIService.SendChatRequest(apiKey, chatRequest.ToString());
 
             string title = null;
+            string kebabTitle = null;
             var frontMatterRegex = new Regex(@"---\s*(.*?)---", RegexOptions.Singleline);
             var match = frontMatterRegex.Match(response);
 
             if (match.Success)
             {
                 string frontMatter = match.Groups[1].Value;
-                var frontMatterLines = frontMatter.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 
-                foreach (var line in frontMatterLines)
-                {
-                    if (line.StartsWith("title:"))
-                    {
-                        title = line.Substring("title:".Length).Trim().Trim('"');
-                        break;
-                    }
-                }
+                var deserializer = new DeserializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .Build();
+
+                var frontMatterData = deserializer.Deserialize<Dictionary<string, object>>(frontMatter);
+
+                title = frontMatterData["title"].ToString();
+                kebabTitle = ToKebabCase(title);
+                frontMatterData["coverImage"] = $"/public/images/posts/{kebabTitle}.png";
+                var ogImage = frontMatterData["ogImage"] as Dictionary<object, object>;
+                ogImage["url"] = $"/public/images/posts/{kebabTitle}.png";
+
+                var serializer = new SerializerBuilder()
+                    .WithNamingConvention(CamelCaseNamingConvention.Instance)
+                    .WithEventEmitter(next => new QuotingEventEmitter(next))
+                    .Build();
+
+                var updatedFrontMatter = serializer.Serialize(frontMatterData);
+                response = frontMatterRegex.Replace(response, $"---\n{updatedFrontMatter}\n---", 1);
             }
             var imageUrl = await OpenAIService.GenerateImage(apiKey, title);
             var blogPost = new BlogPost();
-            blogPost.Title = ToKebabCase(title);
+            blogPost.Title = kebabTitle;
             blogPost.Content = response;
             blogPost.ImageURL = imageUrl;
             return blogPost;
@@ -189,6 +207,19 @@ You will receive a list of past topics from the user, write a blog on a brand ne
             else
             {
                 throw new HttpRequestException($"Request failed with status code {response.StatusCode}");
+            }
+        }
+
+        public class QuotingEventEmitter : ChainedEventEmitter
+        {
+            public QuotingEventEmitter(IEventEmitter nextEmitter) : base(nextEmitter)
+            {
+            }
+
+            public override void Emit(ScalarEventInfo eventInfo, IEmitter emitter)
+            {
+                eventInfo.Style = ScalarStyle.DoubleQuoted;
+                base.Emit(eventInfo, emitter);
             }
         }
 

@@ -47,9 +47,10 @@ namespace AutoContentGenerator
 
             var requestData = new
             {
+                model = "dall-e-3",
                 prompt = "Photorealistic image: " + prompt,
                 n = 1,
-                size = "512x512"
+                size = "1024x1024",
             };
             var jsonString = JsonConvert.SerializeObject(requestData);
             var httpContent = new StringContent(jsonString, Encoding.UTF8, "application/json");
