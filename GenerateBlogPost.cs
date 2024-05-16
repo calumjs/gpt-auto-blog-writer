@@ -161,9 +161,9 @@ Reply with *only* the blog post and no additional explanatory details.
 
                 title = frontMatterData["title"].ToString();
                 kebabTitle = ToKebabCase(title);
-                frontMatterData["coverImage"] = $"/public/images/posts/{kebabTitle}.png";
+                frontMatterData["coverImage"] = $"/images/posts/{kebabTitle}.png";
                 var ogImage = frontMatterData["ogImage"] as Dictionary<object, object>;
-                ogImage["url"] = $"/public/images/posts/{kebabTitle}.png";
+                ogImage["url"] = $"/images/posts/{kebabTitle}.png";
 
                 var serializer = new SerializerBuilder()
                     .WithNamingConvention(CamelCaseNamingConvention.Instance)
