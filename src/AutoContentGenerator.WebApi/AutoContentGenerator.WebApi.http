@@ -1,0 +1,12 @@
+@BaseUrl = https://localhost:7085
+
+
+POST {{BaseUrl}}/generate-blog-post
+Accept: application/json
+
+###
+
+POST {{BaseUrl}}/pr-webhook
+Accept: application/json
+
+###
