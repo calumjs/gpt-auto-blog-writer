@@ -36,7 +36,8 @@ app.MapPost("generate-blog-post", () => GenerateBlogPostEndpoint.GenerateBlogPos
     .Produces<string>(StatusCodes.Status400BadRequest)
     .WithOpenApi();
 
-app.MapPost("pr-webhook", (HttpRequest request) => HandlePullRequestWebhookEndpoint.HandleWebhook(request, appConfig))
+app.MapPost("pr-webhook/{pullRequestNumber:int}", async (int pullRequestNumber) =>
+    await HandlePullRequestWebhookEndpoint.HandleWebhook(pullRequestNumber, appConfig))
     .WithName("HandleGitHubWebHook")
     .WithDescription("This will react to GitHub review comments in PRs.")
     .Produces(StatusCodes.Status204NoContent)

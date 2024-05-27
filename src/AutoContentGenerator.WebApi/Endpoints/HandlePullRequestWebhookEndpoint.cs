@@ -1,14 +1,14 @@
 ﻿using AutoContentGenerator.WebApi.Models;
 using AutoContentGenerator.WebApi.Services;
 using LibGit2Sharp;
-using Newtonsoft.Json.Linq;
 using Octokit;
+using Newtonsoft.Json.Linq;
 
 namespace AutoContentGenerator.WebApi.Endpoints;
 
 public static class HandlePullRequestWebhookEndpoint
 {
-    public static async Task<IResult> HandleWebhook(HttpRequest request, AppConfig appConfig)
+    public static async Task<IResult> HandleWebhook(int pullRequestNumber, AppConfig appConfig)
     {
         if (appConfig?.GitHubConfig == null || appConfig.OpenAIConfig == null)
         {
@@ -27,22 +27,21 @@ public static class HandlePullRequestWebhookEndpoint
         string gitHubUser = appConfig.GitHubConfig.GitHubEmail;
         string postsDirectory = appConfig.GitHubConfig.GitHubPostsDirectory;
 
-        // Parse the request payload
-        string requestBody = await new StreamReader(request.Body).ReadToEndAsync();
-        dynamic data = JObject.Parse(requestBody);
-        if (data.action != "submitted")
-        {
-            return TypedResults.NoContent();
-        }
-
-        int pullRequestNumber = data.pull_request.number;
-        string branchName = data.pull_request.head.@ref;
-
         var gitHubClient = new GitHubClient(new ProductHeaderValue("AutoContentGenerator"))
         {
             Credentials = new Octokit.Credentials(gitHubToken)
         };
 
+        // Get the pull request details
+        var pullRequest = await gitHubClient.PullRequest.Get(repoOwner, repoName, pullRequestNumber);
+        if (pullRequest == null)
+        {
+            return TypedResults.NotFound("Pull request not found.");
+        }
+
+        string branchName = pullRequest.Head.Ref;
+
+        // Get the review comments
         var reviewComments = await gitHubClient.PullRequest.ReviewComment.GetAll(repoOwner, repoName, pullRequestNumber);
         var commentsWithContext = new List<(string Path, int Line, string Comment)>();
         foreach (var comment in reviewComments)
@@ -53,7 +52,10 @@ public static class HandlePullRequestWebhookEndpoint
 
             commentsWithContext.Add((filePath, line, commentText));
         }
-        string overallReviewComment = data.review.body;
+
+        // Get the overall review comment if it exists
+        var reviews = await gitHubClient.PullRequest.Review.GetAll(repoOwner, repoName, pullRequestNumber);
+        var overallReviewComment = reviews.FirstOrDefault()?.Body ?? string.Empty;
 
         // Get the list of changed files in the pull request
         var changedFiles = await gitHubClient.PullRequest.Files(repoOwner, repoName, pullRequestNumber);
@@ -84,14 +86,14 @@ public static class HandlePullRequestWebhookEndpoint
             // Edit the markdown file based on the comment
             string markdownFilePath = Path.Combine(clonePath, markdownFileName);
             string markdownContent = File.ReadAllText(markdownFilePath);
-            EditContentResult editContentResult = await EditContentBasedOnComments(appConfig.OpenAIConfig, markdownContent, commentsWithContext, overallReviewComment); // Update this with the modified content based on the comment
+            EditContentResult editContentResult = await EditContentBasedOnComments(appConfig.OpenAIConfig, markdownContent, commentsWithContext, overallReviewComment);
 
             // Write the updated content back to the file
             File.WriteAllText(markdownFilePath, editContentResult.Content);
 
             // Commit the changes
             Commands.Stage(repo, markdownFilePath);
-            var author = new LibGit2Sharp.Signature("GPT-Blog-Writer", "calumjs@live.com", DateTimeOffset.Now);
+            var author = new LibGit2Sharp.Signature("GPT-Blog-Writer", gitHubUser, DateTimeOffset.Now);
             repo.Commit(editContentResult.Comment, author, author);
 
             // Push the changes back to the repository
@@ -113,53 +115,54 @@ public static class HandlePullRequestWebhookEndpoint
     private async static Task<EditContentResult> EditContentBasedOnComments(OpenAIConfig openAiConfig, string markdownContent, List<(string Path, int Line, string Comment)> commentsWithContext, string overallReviewComment)
     {
         string apiKey = openAiConfig.OpenAIApiKey;
-        string prompt = $$"""
+        string prompt = @$"
 You are a blog post editor for my blog on tea called Tea Treasury, at teatreasury.com
 This is a blog all about tea - we cover all aspects essential and tangential related to tea, tea production, tea consumption, etc.
 Feel free to be controversial in order to drive engagement.
 Use markdown when you create the page.
 Do not put the title in an h1 tag at the start of the article, because it will be added separately via my blog page.
-Use an occaisional pun or thoughtful personal remark in the introduction or conclusion. Encourage people to engage with the discussion area under the post via various means.
-Today's date is {{DateTime.Now:yyyy-MM-dd}}.
+Use an occasional pun or thoughtful personal remark in the introduction or conclusion. Encourage people to engage with the discussion area under the post via various means.
+Today's date is {DateTime.Now.ToString("o")}.
 Include frontmatter on your page in the following format:
 ---
-title: "<title>"
-date: "{{DateTime.Now:yyyy-MM-dd}}"
-author: "Tea Treasury"
-tags:
-- "<tag1>"
-- "<tag2>"
-- "<tag3>"
+title: ""<title>""
+excerpt: ""<excerpt>""
+coverImage: ""/images/posts/<title>.png""
+date: ""{DateTime.Now.ToString("o")}""
+author:
+  name: Tea Treasury
+ogImage:
+  url: ""/images/posts/<title>.png""
 ---
 You will receive the blog post to be edited, along with comments from me about things that need to be fixed. You must only change the things which are explicitly requested. Respond ONLY with the edited blog post, do not give any extra comment. Make sure you give the entire blog post including unedited content because I will replace the entire file content with what you give me.
-""";
+";
 
-        // Build the chat request content
-        var chatContent = new JObject
+        JObject chatRequest = new JObject
         {
-            ["model"] = openAiConfig.Model,
-            ["messages"] = new JArray
-        {
-            new JObject { ["role"] = "system", ["content"] = prompt },
-            new JObject { ["role"] = "user", ["content"] = markdownContent }
-        }
+            { "model", openAiConfig.Model ?? "gpt-4" },
+            { "messages", new JArray
+                {
+                    new JObject { { "role", "system" }, { "content", prompt } },
+                    new JObject { { "role", "user" }, { "content", markdownContent } }
+                }
+            }
         };
 
         foreach (var comment in commentsWithContext)
         {
-            chatContent["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = $"Comment on line {comment.Line}: {comment.Comment}" });
+            chatRequest["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = $"Comment on line {comment.Line}: {comment.Comment}" });
         }
 
-        chatContent["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = overallReviewComment });
+        chatRequest["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = overallReviewComment });
 
         // Call the SendChatRequest method
-        string editedContent = await OpenAIService.SendChatRequest(apiKey, chatContent.ToString());
+        string editedContent = await OpenAIService.SendChatRequest(apiKey, chatRequest.ToString());
 
         // Append a new user input for the comment explaining the changes
-        chatContent["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = "Now give a comment explaining the changes you made in detail, with the reason why you made any artistic choices - reply with only the comment, no additional message" });
+        chatRequest["messages"].Last.AddAfterSelf(new JObject { ["role"] = "user", ["content"] = "Now give a comment explaining the changes you made in detail, with the reason why you made any artistic choices - reply with only the comment, no additional message" });
 
         // Call the SendChatRequest method again
-        string commentResponse = await OpenAIService.SendChatRequest(apiKey, chatContent.ToString());
+        string commentResponse = await OpenAIService.SendChatRequest(apiKey, chatRequest.ToString());
 
         return new EditContentResult
         {
@@ -170,9 +173,7 @@ You will receive the blog post to be edited, along with comments from me about t
 
     private static async Task PostCommentReply(GitHubClient gitHubClient, string repoOwner, string repoName, int pullRequestNumber, string comment)
     {
-        var pr = await gitHubClient.PullRequest.Get(repoOwner, repoName, pullRequestNumber);
-        int issueNumber = pr.Number;
-        await gitHubClient.Issue.Comment.Create(repoOwner, repoName, issueNumber, comment);
+        await gitHubClient.Issue.Comment.Create(repoOwner, repoName, pullRequestNumber, comment);
     }
 }
 

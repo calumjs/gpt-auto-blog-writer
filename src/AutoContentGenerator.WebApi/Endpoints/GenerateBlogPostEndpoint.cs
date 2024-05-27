@@ -1,6 +1,7 @@
 ﻿using AutoContentGenerator.WebApi.Models;
 using AutoContentGenerator.WebApi.Services;
 using LibGit2Sharp;
+using Newtonsoft.Json.Linq;
 using Octokit;
 using System.Text.RegularExpressions;
 using YamlDotNet.Core;
@@ -99,47 +100,43 @@ public static class GenerateBlogPostEndpoint
     }
     public static async Task<BlogPost> WriteBlogPost(string existingPosts, OpenAIConfig openAIConfig)
     {
-        string prompt = $$"""
+        string prompt = @$"
 You are a blog writer for my blog on tea called Tea Treasury, at teatreasury.com
 This is a blog all about tea - we cover all aspects essential and tangential related to tea, tea production, tea consumption, etc.
 Feel free to be controversial in order to drive engagement.
 Use markdown when you create the page.
 Do not put the title in an h1 tag at the start of the article, because it will be added separately via my blog page.
 Use an occasional pun or thoughtful personal remark in the introduction or conclusion. Encourage people to engage with the discussion area under the post via various means.
-Today's date is {{DateTime.Now:o}}.
+Today's date is {DateTime.Now.ToString("o")}.
 Include frontmatter on your page in the following format:
 ---
-title: "<title>"
-excerpt: "<excerpt>"
-coverImage: "/images/posts/<title>.png"
-date: "{{DateTime.Now:o}}"
+title: ""<title>""
+excerpt: ""<excerpt>""
+coverImage: ""/images/posts/<title>.png""
+date: ""{DateTime.Now.ToString("o")}""
 author:
   name: Tea Treasury
 ogImage:
-  url: "/images/posts/<title>.png"
+  url: ""/images/posts/<title>.png""
 ---
 You will receive a list of past topics from the user, write a blog on a brand new topic not listed. Do not repeat a topic already covered. Aim for 1000+ words. Include a table or two to break up the solid text content.
 Reply with *only* the blog post and no additional explanatory details.
-""";
+";
 
-        string chatRequest = $$"""
-{
-    "model": "{{openAIConfig.Model ?? "gpt-4o"}},
-    "messages": [
-      {
-        "role": "system",
-        "content": "{{prompt}}"
-      },
-      {
-        "role": "user",
-        "content": "{{existingPosts}}"
-      }
-    ]
-}
-""";
+        JObject chatRequest = new JObject
+    {
+        { "model", openAIConfig.Model ?? "gpt-4" },
+        { "messages", new JArray
+            {
+                new JObject { { "role", "system" }, { "content", prompt } },
+                new JObject { { "role", "user" }, { "content", existingPosts } }
+            }
+        }
+    };
 
-        string response = await OpenAIService.SendChatRequest(openAIConfig.OpenAIApiKey, chatRequest);
+        string response = await OpenAIService.SendChatRequest(openAIConfig.OpenAIApiKey, chatRequest.ToString());
 
+        // Process the response
         string title = null;
         string kebabTitle = null;
         var frontMatterRegex = new Regex(@"---\s*(.*?)---", RegexOptions.Singleline);
@@ -157,9 +154,9 @@ Reply with *only* the blog post and no additional explanatory details.
 
             title = frontMatterData["title"].ToString();
             kebabTitle = ToKebabCase(title);
-            frontMatterData["coverImage"] = $"/public/images/posts/{kebabTitle}.png";
+            frontMatterData["coverImage"] = $"/images/posts/{kebabTitle}.png";
             var ogImage = frontMatterData["ogImage"] as Dictionary<object, object>;
-            ogImage["url"] = $"/public/images/posts/{kebabTitle}.png";
+            ogImage["url"] = $"/images/posts/{kebabTitle}.png";
 
             var serializer = new SerializerBuilder()
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)

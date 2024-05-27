@@ -20,6 +20,6 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
-    }Q
+    }
   }
 }
