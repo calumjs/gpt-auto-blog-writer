@@ -6,37 +6,57 @@
 [![YouTube video](https://img.youtube.com/vi/W5nljACjvAc/0.jpg)](https://www.youtube.com/watch?v=W5nljACjvAc)  
 **Feature: Interactive Review Process...Coming to the repo soon!**
 
-Auto Content Generator is an Azure Function written in C# that uses OpenAI's GPT-3.5-turbo to generate new markdown formatted blog posts. I have left my prompt in there to show you what I did, but obviously you will need to update it to meet the requirements of your blog. The function clones a specified GitHub repository, generates a new Markdown file with the blog post content, commits the new file, and creates a pull request for the change.
+Auto Content Generator is a .NET 8 application that uses OpenAI's GPT-3.5-turbo (or GPT-4) to generate new markdown formatted blog posts. The application clones a specified GitHub repository, generates a new Markdown file with the blog post content, commits the new file, and creates a pull request for the change. Additionally, it handles pull request reviews, updating content based on comments, and commits changes back to the repository.
 
 ## Environment Variables:
-- GitHubToken: The personal access token for your GitHub account.
-- GitHubRepoOwner: The owner of the GitHub repository.
-- GitHubRepoName: The name of the GitHub repository.
-- GitHubEmail: The email address of your GitHub account.
-- GitHubPostsDirectory: The directory in the repository where the blog posts are stored.
-- OpenAIKey: Your OpenAI API key.
+- `GitHubToken`: The personal access token for your GitHub account.
+- `GitHubRepoOwner`: The owner of the GitHub repository.
+- `GitHubRepoName`: The name of the GitHub repository.
+- `GitHubEmail`: The email address of your GitHub account.
+- `GitHubPostsDirectory`: The directory in the repository where the blog posts are stored.
+- `OpenAIKey`: Your OpenAI API key.
 
 ## Usage:
-1. Set the required environment variables in the `local.settings.json` file.
+1. **Set the required environment variables in the `appsettings.json` file or in the `appsettings.Development.json` file for development.**
 
-Sample `local.settings.json`:
+Sample `appsettings.json`:
 
 ```json
 {
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "",
-    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
-    "GitHubToken": "<your_github_token>",
-    "GitHubRepoOwner": "<repository_owner>",
-    "GitHubRepoName": "<repository_name>",
-    "GitHubEmail": "<github_email>",
-    "GitHubPostsDirectory": "<posts_directory>",
-    "OpenAIKey": "<your_openai_key>"
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "GitHub": {
+    "GitHubToken": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "GitHubRepoOwner": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "GitHubRepoName": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "GitHubEmail": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "GitHubPostsDirectory": "_posts"
+  },
+  "OpenAI": {
+    "OpenAIKey": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "Model": "gpt-4",
+    "ImageModel": "dall-e-3"
   }
 }
 ```
 
-2. Deploy the function to Azure.
-3. Call the HTTP trigger whenever you want a new blog post
-4. Set up the GitHub webhook...the event is pull_request_review and the payload URL will be https://<function app name>.azurewebsites.net/api/HandlePullRequestComment?code=<function code>
+2. Run the application.
+
+Use the following command to run the application:
+
+```bash
+dotnet run
+```
+
+3. Generate a new blog post.
+
+Make an HTTP POST request to the endpoint /generate-blog-post. This will give you a new pull request on your repo.
+
+4. Respond to PR comments
+
+Leave a comment asking for changes and submit your review, then call the endpoint /pr-webhook/{pullRequestNumber:int}. Your comments will be picked up and actioned.
