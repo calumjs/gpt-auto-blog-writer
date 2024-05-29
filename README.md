@@ -38,7 +38,7 @@ Sample `appsettings.json`:
     "GitHubPostsDirectory": "_posts"
   },
   "OpenAI": {
-    "OpenAIKey": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
+    "OpenAIApiKey": "<< PUT IN SECRETS OR 'appsettings.Development.json' >>",
     "Model": "gpt-4",
     "ImageModel": "dall-e-3"
   }
