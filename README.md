@@ -17,7 +17,7 @@ Auto Content Generator is a .NET 8 application that uses OpenAI's GPT-3.5-turbo 
 - `OpenAIKey`: Your OpenAI API key.
 
 ## Clone your blog
-Start here: https://vercel.com/?utm_source=github&utm_medium=readme&utm_campaign=next-example
+Start here: [https://vercel.com/?utm_source=github&utm_medium=readme&utm_campaign=next-example](https://vercel.com/new/clone?repository-url=https://github.com/vercel/next.js/tree/canary/examples/blog-starter&project-name=blog-starter&repository-name=blog-starter)
 
 ## Usage:
 1. **Set the required environment variables in the `appsettings.json` file or in the `appsettings.Development.json` file for development.**
