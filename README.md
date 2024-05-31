@@ -19,6 +19,8 @@ Auto Content Generator is a .NET 8 application that uses OpenAI's GPT-3.5-turbo 
 ## Clone your blog
 Start here: https://vercel.com/new/calumjs-projects/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fblog-starter&project-name=blog-starter&repository-name=blog-starter
 
+This will deploy your blog with Vercel (free). Don't worry, you don't need to touch the blog repo unless you want to update your blog manually. The auto blog writer will write posts for you, so to get started there is no need to clone the blog repo locally.
+
 ## Usage:
 1. **Set the required environment variables in the `appsettings.json` file or in the `appsettings.Development.json` file for development.**
 
