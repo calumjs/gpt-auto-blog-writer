@@ -8,11 +8,15 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.3" />
+    <PackageReference Include="SharpGit" Version="1.3000.20" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
     <PackageReference Include="Octokit" Version="5.0.3" />
     <PackageReference Include="LibGit2Sharp" Version="0.26.2" />
     <PackageReference Include="OpenAI" Version="1.7.2" />
     <PackageReference Include="YamlDotNet" Version="15.1.4" />
+    <PackageReference Include="ngit" Version="1.0.0.20110815" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    
   </ItemGroup>
 
 </Project>
