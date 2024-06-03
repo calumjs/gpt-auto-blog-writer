@@ -50,6 +50,11 @@ Sample `appsettings.json`:
 }
 ```
 
+Note - Configuring GitHub Access Token:
+![image](https://github.com/calumjs/gpt-auto-blog-writer/assets/13717390/5837f104-be10-4ea8-8556-b0d1ddf7367e)
+You need to give access to the blog repository.
+And you will need read and write access to administration, code, and pull requests
+
 2. Run the application.
 
 Use the following command to run the application:
